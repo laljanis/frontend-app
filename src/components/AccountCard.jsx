@@ -1,141 +1,124 @@
-import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowUpRight, ChevronRight, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
 import DonutChart from './DonutChart';
-import DriversBarChart from './DriversBarChart';
-import RiskFactorsSection from './RiskFactorsSection';
 import Sparkline from './Sparkline';
-import WhatIfPanel from './WhatIfPanel';
 
-const TIER_STYLES = {
-  Watch: {
-    badge: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
-    border: 'border-amber-500/20',
-    hover: 'hover:border-amber-500/40',
+const SEGMENT_STYLES = {
+  Low: {
+    badge: 'bg-emerald-400/10 text-emerald-200 border-emerald-300/20',
+    glow: 'from-emerald-400/20',
+    text: 'text-emerald-200',
   },
-  Nudge: {
-    badge: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
-    border: 'border-orange-500/20',
-    hover: 'hover:border-orange-500/40',
+  Medium: {
+    badge: 'bg-yellow-400/10 text-yellow-200 border-yellow-300/20',
+    glow: 'from-yellow-400/20',
+    text: 'text-yellow-200',
   },
-  Intervene: {
-    badge: 'bg-red-500/20 text-red-400 border border-red-500/30',
-    border: 'border-red-500/20',
-    hover: 'hover:border-red-500/40',
+  High: {
+    badge: 'bg-orange-400/10 text-orange-200 border-orange-300/20',
+    glow: 'from-orange-400/20',
+    text: 'text-orange-200',
+  },
+  Critical: {
+    badge: 'bg-rose-400/10 text-rose-200 border-rose-300/20',
+    glow: 'from-rose-400/20',
+    text: 'text-rose-200',
   },
 };
 
-const ACTION_STYLES = {
-  Watch: 'bg-amber-500/10 border-amber-500/20 text-amber-300',
-  Nudge: 'bg-orange-500/10 border-orange-500/20 text-orange-300',
-  Intervene: 'bg-red-500/10 border-red-500/20 text-red-300',
-};
+function MovementBadge({ movement }) {
+  const improving = movement === 'Improving';
+  const escalating = movement === 'Escalating';
+  const Icon = improving ? TrendingDown : TrendingUp;
 
-function ChevronIcon({ open }) {
   return (
-    <svg
-      className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+        improving
+          ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200'
+          : escalating
+            ? 'border-rose-300/20 bg-rose-400/10 text-rose-200'
+            : 'border-white/10 bg-white/5 text-slate-300'
+      }`}
     >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-    </svg>
+      <Icon className="h-3 w-3" />
+      {movement}
+    </span>
   );
 }
 
-export default function AccountCard({ account }) {
-  const [expanded, setExpanded] = useState(false);
-  const [detail, setDetail] = useState(null);
-  const [loading, setLoading] = useState(false);
+export default function AccountCard({ account, index = 0, onOpenAccount }) {
+  const styles = SEGMENT_STYLES[account.segment] ?? SEGMENT_STYLES.Medium;
 
-  const styles = TIER_STYLES[account.tier] ?? TIER_STYLES.Watch;
-
-  const toggle = async () => {
-    if (!expanded && !detail) {
-      setLoading(true);
-      try {
-        const res = await fetch(`/api/accounts/${account.id}`);
-        const data = await res.json();
-        setDetail(data);
-      } finally {
-        setLoading(false);
-      }
+  const openDashboard = () => {
+    try {
+      onOpenAccount(account.id);
+    } catch (err) {
+      console.error('Failed to open account dashboard', err);
     }
-    setExpanded(e => !e);
   };
 
   return (
-    <div
-      className={`bg-gray-800 rounded-xl border ${styles.border} ${styles.hover} transition-colors duration-200 overflow-hidden`}
+    <motion.button
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(index * 0.045, 0.28), duration: 0.4 }}
+      whileHover={{ y: -5, scale: 1.01 }}
+      onClick={openDashboard}
+      className="group relative overflow-hidden rounded-3xl border border-white/10 bg-white/[0.055] p-4 text-left shadow-xl shadow-slate-950/30 backdrop-blur-xl transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/60"
+      aria-label={`Open dashboard for ${account.customerName}`}
     >
-      {/* Clickable header */}
-      <button
-        onClick={toggle}
-        className="w-full text-left p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/50"
-      >
-        {/* Top row: ID + tier badge + chevron */}
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-[10px] text-gray-500 uppercase tracking-wider font-medium mb-0.5">Account</p>
-            <p className="text-white font-mono font-semibold text-sm">{account.id}</p>
+      <div className={`absolute inset-x-0 top-0 h-28 bg-gradient-to-br ${styles.glow} via-white/[0.025] to-transparent opacity-90`} />
+      <div className="relative">
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-semibold text-white">{account.customerName}</p>
+              <ArrowUpRight className="h-3.5 w-3.5 text-slate-500 transition group-hover:text-white" />
+            </div>
+            <p className="mt-1 font-mono text-[11px] text-slate-500">{account.id}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${styles.badge}`}>
-              {account.tier}
-            </span>
-            <span className="text-gray-500">
-              <ChevronIcon open={expanded} />
-            </span>
+          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${styles.badge}`}>
+            {account.segment}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-[90px,1fr] gap-4">
+          <DonutChart score={account.score} tier={account.tier} size={90} label="Risk" />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Score</p>
+                <p className={`mt-1 text-xl font-semibold ${styles.text}`}>{Math.round(account.score * 100)}%</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2.5">
+                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Tier</p>
+                <p className={`mt-1 text-xl font-semibold ${styles.text}`}>{account.tier}</p>
+              </div>
+            </div>
+            <Sparkline trend={account.trend} tier={account.tier} height={42} />
           </div>
         </div>
 
-        {/* Donut + meta */}
-        <div className="flex items-center gap-4">
-          <DonutChart score={account.score} tier={account.tier} />
-          <div className="flex-1 min-w-0 space-y-3">
-            <div>
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Top Driver</p>
-              <p className="text-gray-300 text-xs leading-relaxed line-clamp-2">{account.top_driver}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Trend (6 periods)</p>
-              <Sparkline trend={account.trend} tier={account.tier} />
-            </div>
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.18em] text-cyan-200/70">
+              <Sparkles className="h-3.5 w-3.5" />
+              Top Driver
+            </span>
+            <MovementBadge movement={account.riskMovement} />
           </div>
+          <p className="line-clamp-2 text-xs leading-relaxed text-slate-300">{account.top_driver}</p>
         </div>
-      </button>
 
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="border-t border-gray-700/60 p-5 space-y-5">
-          {loading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : detail ? (
-            <>
-              <DriversBarChart drivers={detail.drivers} />
-              <div className="border-t border-gray-700/60 pt-4">
-                <RiskFactorsSection drivers={detail.drivers} />
-              </div>
-              <div className={`border rounded-lg px-4 py-3 ${ACTION_STYLES[detail.tier]}`}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider mb-0.5 opacity-70">
-                  Recommended Action
-                </p>
-                <p className="font-semibold text-sm">{detail.action.title}</p>
-                <p className="text-xs mt-1 opacity-80 leading-relaxed">{detail.action.detail}</p>
-              </div>
-              <div className="border-t border-gray-700/60 pt-4">
-                <WhatIfPanel
-                  accountId={account.id}
-                  originalScore={account.score}
-                  originalTier={account.tier}
-                />
-              </div>
-            </>
-          ) : null}
+        <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
+          <span>Predicted movement</span>
+          <span className="inline-flex items-center gap-1 text-slate-300 transition group-hover:text-white">
+            Open dashboard
+            <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
         </div>
-      )}
-    </div>
+      </div>
+    </motion.button>
   );
 }

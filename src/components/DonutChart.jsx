@@ -1,39 +1,75 @@
-import { PieChart, Pie, Cell } from 'recharts';
-
 const TIER_COLORS = {
-  Watch: '#F59E0B',
-  Nudge: '#F97316',
-  Intervene: '#EF4444',
+  Watch: '#FACC15',
+  Nudge: '#FB923C',
+  Intervene: '#F43F5E',
 };
 
-export default function DonutChart({ score, tier }) {
+export default function DonutChart({ score, tier, size = 110, label = 'risk' }) {
   const pct = Math.round(score * 100);
-  const color = TIER_COLORS[tier] ?? '#F59E0B';
-  const data = [{ value: pct }, { value: 100 - pct }];
+  const color = TIER_COLORS[tier] ?? '#FACC15';
+  const center = Math.round(size / 2);
+  const strokeWidth = Math.max(10, Math.round(size * 0.16));
+  const radius = center - strokeWidth / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progressOffset = circumference - (pct / 100) * circumference;
+  const percentFontSize = Math.max(18, Math.round(size * 0.24));
+  const labelFontSize = Math.max(9, Math.round(size * 0.1));
 
   return (
-    <div className="relative w-[110px] h-[110px] flex-shrink-0">
-      <PieChart width={110} height={110}>
-        <Pie
-          data={data}
-          cx={50}
-          cy={50}
-          innerRadius={34}
-          outerRadius={50}
-          startAngle={90}
-          endAngle={-270}
-          dataKey="value"
-          strokeWidth={0}
-          isAnimationActive={false}
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <div
+        className="absolute inset-2 rounded-full blur-xl opacity-30"
+        style={{ backgroundColor: color }}
+      />
+      <svg className="relative block" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.08)"
+          strokeWidth={strokeWidth}
+        />
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={progressOffset}
+          style={{
+            transform: 'rotate(-90deg)',
+            transformOrigin: '50% 50%',
+            transition: 'stroke-dashoffset 900ms ease-out',
+          }}
+        />
+        <text
+          x={center}
+          y={center}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="white"
+          fontSize={percentFontSize}
+          fontWeight="700"
         >
-          <Cell fill={color} />
-          <Cell fill="#374151" />
-        </Pie>
-      </PieChart>
-      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <span className="text-lg font-bold text-white leading-none">{pct}%</span>
-        <span className="text-[10px] text-gray-400 mt-0.5">risk</span>
-      </div>
+          {pct}%
+        </text>
+        <text
+          x={center}
+          y={center + percentFontSize * 0.62}
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#64748B"
+          fontSize={labelFontSize}
+          fontWeight="600"
+          letterSpacing={Math.max(1.3, size * 0.018)}
+        >
+          {label.toUpperCase()}
+        </text>
+      </svg>
     </div>
   );
 }

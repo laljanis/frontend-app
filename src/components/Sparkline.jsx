@@ -1,33 +1,46 @@
-import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 const TIER_COLORS = {
-  Watch: '#F59E0B',
-  Nudge: '#F97316',
-  Intervene: '#EF4444',
+  Watch: '#FACC15',
+  Nudge: '#FB923C',
+  Intervene: '#F43F5E',
 };
 
-export default function Sparkline({ trend, tier }) {
-  const color = TIER_COLORS[tier] ?? '#F59E0B';
-  const data = trend.map((v, i) => ({ period: `P${i + 1}`, score: v }));
+export default function Sparkline({ trend = [], tier, height = 36 }) {
+  const color = TIER_COLORS[tier] ?? '#FACC15';
+  const gradientId = `spark-${tier || 'default'}-${height}`;
+  const data = trend.map((value, index) => ({ period: `P${index + 1}`, score: value }));
 
   return (
-    <ResponsiveContainer width="100%" height={36}>
-      <LineChart data={data}>
-        <Line
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.45} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area
           type="monotone"
           dataKey="score"
           stroke={color}
-          strokeWidth={1.5}
+          strokeWidth={2}
+          fill={`url(#${gradientId})`}
           dot={false}
-          isAnimationActive={false}
+          animationDuration={800}
         />
         <Tooltip
-          contentStyle={{ background: '#1F2937', border: '1px solid #374151', borderRadius: 6, fontSize: 11 }}
-          labelStyle={{ color: '#9CA3AF' }}
-          itemStyle={{ color: color }}
-          formatter={v => [v.toFixed(2), 'Score']}
+          contentStyle={{
+            background: '#020617',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 12,
+            fontSize: 11,
+          }}
+          labelStyle={{ color: '#94A3B8' }}
+          itemStyle={{ color }}
+          formatter={value => [Number(value).toFixed(2), 'Risk score']}
         />
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 }

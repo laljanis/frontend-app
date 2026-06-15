@@ -1,16 +1,61 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowDownRight, ArrowUpRight, BrainCircuit, SlidersHorizontal } from 'lucide-react';
 
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
+
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(t);
+    const timeout = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timeout);
   }, [value, delay]);
+
   return debounced;
 }
 
-const TIER_COLOR = { Watch: 'text-amber-400', Nudge: 'text-orange-400', Intervene: 'text-red-400' };
-const TIER_BG = { Watch: 'bg-amber-500/20', Nudge: 'bg-orange-500/20', Intervene: 'bg-red-500/20' };
+const TIER_COLOR = {
+  Watch: 'text-yellow-200',
+  Nudge: 'text-orange-200',
+  Intervene: 'text-rose-200',
+};
+
+const TIER_BG = {
+  Watch: 'bg-yellow-400/10 border-yellow-300/20',
+  Nudge: 'bg-orange-400/10 border-orange-300/20',
+  Intervene: 'bg-rose-400/10 border-rose-300/20',
+};
+
+const SIMULATOR_LABELS = {
+  DEBT_TO_CREDIT_RATIO: 'Credit utilization',
+  INST_MAX_DAYS_LATE: 'Payment delays',
+  EXT_SOURCE_MEAN: 'Income and bureau strength',
+  CC_UTILITY_MEAN: 'Loan balance pressure',
+};
+
+function ScoreTile({ label, score, tier, highlighted }) {
+  return (
+    <div
+      className={`rounded-3xl border p-4 ${
+        highlighted
+          ? 'border-cyan-300/25 bg-cyan-400/10 shadow-lg shadow-cyan-950/20'
+          : 'border-white/10 bg-black/20'
+      }`}
+    >
+      <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">{label}</p>
+      <motion.p
+        key={`${label}-${score}`}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`mt-3 text-4xl font-semibold ${TIER_COLOR[tier] ?? 'text-cyan-200'}`}
+      >
+        {Math.round(score * 100)}%
+      </motion.p>
+      <span className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-medium ${TIER_BG[tier] ?? 'border-white/10 bg-white/5'} ${TIER_COLOR[tier] ?? 'text-slate-300'}`}>
+        {tier}
+      </span>
+    </div>
+  );
+}
 
 export default function WhatIfPanel({ accountId, originalScore, originalTier }) {
   const [sliders, setSliders] = useState(null);
@@ -19,34 +64,53 @@ export default function WhatIfPanel({ accountId, originalScore, originalTier }) 
   const [loadingSliders, setLoadingSliders] = useState(true);
   const [predicting, setPredicting] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [error, setError] = useState(null);
 
   const debouncedValues = useDebounce(values, 450);
 
-  // Load slider definitions with current account values
   useEffect(() => {
-    fetch(`/api/sliders/${accountId}`)
-      .then(r => {
-        if (r.status === 503) { setUnavailable(true); return null; }
-        return r.json();
+    const controller = new AbortController();
+    setLoadingSliders(true);
+    setUnavailable(false);
+    setError(null);
+
+    fetch(`/api/sliders/${accountId}`, { signal: controller.signal })
+      .then(response => {
+        if (response.status === 503) {
+          setUnavailable(true);
+          return null;
+        }
+        if (!response.ok) throw new Error(`Slider request failed with status ${response.status}`);
+        return response.json();
       })
       .then(data => {
         if (!data) return;
+        const initialValues = {};
+        data.forEach(slider => {
+          initialValues[slider.feature] = slider.current;
+        });
         setSliders(data);
-        const init = {};
-        data.forEach(s => { init[s.feature] = s.current; });
-        setValues(init);
+        setValues(initialValues);
       })
-      .finally(() => setLoadingSliders(false));
+      .catch(err => {
+        if (err.name !== 'AbortError') setError(err.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingSliders(false);
+      });
+
+    return () => controller.abort();
   }, [accountId]);
 
-  // Re-predict on debounced slider changes — only when values differ from baseline
   useEffect(() => {
     if (!sliders || !Object.keys(debouncedValues).length) return;
 
     const overrides = {};
-    sliders.forEach(s => {
-      const v = debouncedValues[s.feature];
-      if (v !== undefined && Math.abs(v - s.current) > 1e-9) overrides[s.feature] = v;
+    sliders.forEach(slider => {
+      const value = debouncedValues[slider.feature];
+      if (value !== undefined && Math.abs(value - slider.current) > 1e-9) {
+        overrides[slider.feature] = value;
+      }
     });
 
     if (!Object.keys(overrides).length) {
@@ -54,29 +118,57 @@ export default function WhatIfPanel({ accountId, originalScore, originalTier }) 
       return;
     }
 
+    const controller = new AbortController();
     setPredicting(true);
+    setError(null);
+
     fetch('/api/predict', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account_id: accountId, overrides }),
+      signal: controller.signal,
     })
-      .then(r => r.json())
+      .then(response => {
+        if (!response.ok) throw new Error(`Prediction failed with status ${response.status}`);
+        return response.json();
+      })
       .then(setPrediction)
-      .finally(() => setPredicting(false));
+      .catch(err => {
+        if (err.name !== 'AbortError') setError(err.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPredicting(false);
+      });
+
+    return () => controller.abort();
   }, [debouncedValues, sliders, accountId]);
 
   if (loadingSliders) {
     return (
-      <div className="flex items-center justify-center py-6">
-        <div className="w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="h-32 animate-pulse rounded-3xl border border-white/10 bg-white/[0.05]" />
+          <div className="h-32 animate-pulse rounded-3xl border border-white/10 bg-white/[0.05]" />
+        </div>
+        <div className="h-44 animate-pulse rounded-3xl border border-white/10 bg-white/[0.05]" />
       </div>
     );
   }
 
   if (unavailable) {
     return (
-      <div className="bg-gray-700/30 border border-gray-700 rounded-lg px-4 py-3 text-center">
-        <p className="text-gray-500 text-xs">Live model not loaded — what-if simulator unavailable</p>
+      <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-6 text-center">
+        <BrainCircuit className="mx-auto mb-3 h-6 w-6 text-slate-500" />
+        <p className="text-sm font-medium text-slate-300">Live model not loaded</p>
+        <p className="mt-1 text-xs text-slate-500">The premium simulator will activate when model files are available.</p>
+      </div>
+    );
+  }
+
+  if (error && !sliders) {
+    return (
+      <div className="rounded-3xl border border-rose-300/20 bg-rose-500/10 px-5 py-4 text-sm text-rose-200">
+        {error}
       </div>
     );
   }
@@ -84,93 +176,89 @@ export default function WhatIfPanel({ accountId, originalScore, originalTier }) 
   if (!sliders) return null;
 
   const predicted = prediction ?? { score: originalScore, tier: originalTier };
-  const delta = prediction ? prediction.score - originalScore : 0;
+  const delta = predicted.score - originalScore;
+  const improving = delta < 0;
+  const DeltaIcon = improving ? ArrowDownRight : ArrowUpRight;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-          What-If Simulator
-        </h3>
-        {predicting && (
-          <div className="w-3.5 h-3.5 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
-        )}
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3">
+        <ScoreTile label="Before Risk" score={originalScore} tier={originalTier} />
+        <ScoreTile label="After Risk" score={predicted.score} tier={predicted.tier} highlighted />
       </div>
 
-      {/* Sliders */}
-      <div className="space-y-4">
-        {sliders.map(s => {
-          const val = values[s.feature] ?? s.current;
-          return (
-            <div key={s.feature}>
-              <div className="flex justify-between items-baseline text-xs mb-1.5">
-                <span className="text-gray-300">{s.label}</span>
-                <span className="text-amber-400 font-mono font-medium ml-2 flex-shrink-0">
-                  {Number(val).toFixed(s.step < 1 ? 2 : 0)}{' '}
-                  <span className="text-gray-500">{s.unit}</span>
-                </span>
-              </div>
-              <input
-                type="range"
-                min={s.min}
-                max={s.max}
-                step={s.step}
-                value={val}
-                onChange={e =>
-                  setValues(prev => ({ ...prev, [s.feature]: parseFloat(e.target.value) }))
-                }
-                className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-gray-600 accent-amber-500"
-              />
-              <div className="flex justify-between text-[10px] text-gray-600 mt-0.5">
-                <span>{s.min}</span>
-                <span>{s.max}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Score comparison */}
-      <div className="grid grid-cols-2 gap-2 pt-1">
-        <div className="rounded-lg px-3 py-2.5 border border-gray-700 bg-gray-700/30">
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Original</p>
-          <p className={`text-xl font-bold ${TIER_COLOR[originalTier]}`}>
-            {Math.round(originalScore * 100)}%
-          </p>
-          <span
-            className={`inline-block text-[10px] px-2 py-0.5 rounded-full mt-1 ${TIER_BG[originalTier]} ${TIER_COLOR[originalTier]}`}
-          >
-            {originalTier}
-          </span>
-        </div>
-        <div
-          className={`rounded-lg px-3 py-2.5 border ${
-            prediction
-              ? 'border-amber-500/30 bg-amber-500/5'
-              : 'border-gray-700 bg-gray-700/30'
-          }`}
-        >
-          <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Predicted</p>
-          <p className={`text-xl font-bold ${TIER_COLOR[predicted.tier]}`}>
-            {Math.round(predicted.score * 100)}%
-          </p>
-          <div className="flex items-center gap-1.5 mt-1">
-            <span
-              className={`inline-block text-[10px] px-2 py-0.5 rounded-full ${TIER_BG[predicted.tier]} ${TIER_COLOR[predicted.tier]}`}
-            >
-              {predicted.tier}
-            </span>
-            {delta !== 0 && (
-              <span
-                className={`text-[10px] font-mono font-semibold ${
-                  delta > 0 ? 'text-red-400' : 'text-emerald-400'
-                }`}
-              >
-                {delta > 0 ? '▲' : '▼'} {Math.abs(Math.round(delta * 100))}%
-              </span>
-            )}
+      <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-cyan-200">
+            <SlidersHorizontal className="h-4 w-4" />
+            <p className="text-sm font-semibold text-white">Live risk recalculation</p>
           </div>
+          {predicting ? (
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
+          ) : (
+            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${
+              improving
+                ? 'border-emerald-300/20 bg-emerald-400/10 text-emerald-200'
+                : delta > 0
+                  ? 'border-rose-300/20 bg-rose-400/10 text-rose-200'
+                  : 'border-white/10 bg-white/5 text-slate-300'
+            }`}
+            >
+              <DeltaIcon className="h-3 w-3" />
+              {delta === 0 ? 'Baseline' : `${Math.abs(Math.round(delta * 100))}% ${improving ? 'lower' : 'higher'}`}
+            </span>
+          )}
         </div>
+
+        <div className="space-y-5">
+          {sliders.map(slider => {
+            const value = values[slider.feature] ?? slider.current;
+            const pct = ((value - slider.min) / (slider.max - slider.min)) * 100;
+
+            return (
+              <div key={slider.feature}>
+                <div className="mb-2 flex items-baseline justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-slate-200">
+                      {SIMULATOR_LABELS[slider.feature] ?? slider.label}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">{slider.label}</p>
+                  </div>
+                  <span className="font-mono text-xs font-semibold text-cyan-200">
+                    {Number(value).toFixed(slider.step < 1 ? 2 : 0)} {slider.unit}
+                  </span>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+                  <input
+                    type="range"
+                    min={slider.min}
+                    max={slider.max}
+                    step={slider.step}
+                    value={value}
+                    onChange={event =>
+                      setValues(prev => ({
+                        ...prev,
+                        [slider.feature]: parseFloat(event.target.value),
+                      }))
+                    }
+                    className="relative h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-cyan-300"
+                  />
+                </div>
+                <div className="mt-1 flex justify-between text-[10px] text-slate-600">
+                  <span>{slider.min}</span>
+                  <span>{slider.max}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {error && (
+          <p className="mt-4 rounded-2xl border border-rose-300/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
