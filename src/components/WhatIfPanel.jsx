@@ -185,7 +185,7 @@ export default function WhatIfPanel({ accountId, originalScore, originalTier }) 
     setUnavailable(false);
     setError(null);
 
-    fetch(`/api/sliders/${accountId}`, { signal: controller.signal })
+    fetch(`/api/sliders/${accountId}`, { credentials: 'same-origin', signal: controller.signal })
       .then(response => {
         if (response.status === 503) {
           setUnavailable(true);
@@ -246,6 +246,7 @@ export default function WhatIfPanel({ accountId, originalScore, originalTier }) 
 
     fetch('/api/predict', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account_id: accountId, overrides }),
       signal: controller.signal,

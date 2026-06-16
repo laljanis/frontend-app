@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Activity,
@@ -6,7 +6,9 @@ import {
   BrainCircuit,
   CircleDollarSign,
   Gauge,
+  LockKeyhole,
   Radar,
+  ShieldCheck,
   Sparkles,
   TrendingUp,
   Users,
@@ -89,10 +91,12 @@ function getCurrentRoute() {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, { credentials: 'same-origin', ...options });
 
   if (!response.ok) {
-    const message = response.status === 404
+    const message = response.status === 401
+      ? 'PIN verification required'
+      : response.status === 404
       ? 'Account not found'
       : `Request failed with status ${response.status}`;
     throw new Error(message);
@@ -176,6 +180,170 @@ function ErrorState({ message }) {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PinLockScreen({ onUnlocked }) {
+  const [digits, setDigits] = useState(['', '', '', '']);
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const inputsRef = useRef([]);
+
+  const pin = digits.join('');
+  const complete = pin.length === 4;
+
+  const focusInput = index => {
+    inputsRef.current[index]?.focus();
+    inputsRef.current[index]?.select();
+  };
+
+  const updateDigit = (index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const next = [...digits];
+    next[index] = digit;
+    setDigits(next);
+    setMessage('');
+
+    if (digit && index < digits.length - 1) {
+      requestAnimationFrame(() => focusInput(index + 1));
+    }
+  };
+
+  const handleKeyDown = (index, event) => {
+    if (event.key === 'Backspace' && !digits[index] && index > 0) {
+      event.preventDefault();
+      const next = [...digits];
+      next[index - 1] = '';
+      setDigits(next);
+      requestAnimationFrame(() => focusInput(index - 1));
+    }
+  };
+
+  const handlePaste = event => {
+    event.preventDefault();
+    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    if (!pasted) return;
+
+    const next = ['', '', '', ''];
+    pasted.split('').forEach((digit, index) => {
+      next[index] = digit;
+    });
+    setDigits(next);
+    requestAnimationFrame(() => focusInput(Math.min(pasted.length, 4) - 1));
+  };
+
+  const submitPin = async event => {
+    event.preventDefault();
+    if (!complete || submitting) {
+      setMessage('Enter the 4-digit access PIN.');
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage('');
+
+    try {
+      const response = await fetch('/api/auth/pin', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.detail || `PIN verification failed with status ${response.status}`);
+      }
+
+      setDigits(['', '', '', '']);
+      onUnlocked();
+    } catch (err) {
+      setMessage(err.message);
+      setDigits(['', '', '', '']);
+      requestAnimationFrame(() => focusInput(0));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen overflow-hidden bg-[#f8fafc] text-slate-800">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute left-[-10%] top-[-10%] h-[520px] w-[520px] rounded-full bg-cyan-100/50 blur-[120px]" />
+        <div className="absolute right-[-12%] top-[12%] h-[520px] w-[520px] rounded-full bg-violet-100/40 blur-[120px]" />
+      </div>
+
+      <main className="relative flex min-h-screen items-center justify-center px-4 py-8">
+        <motion.form
+          onSubmit={submitPin}
+          initial={{ opacity: 0, y: 18, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="w-full max-w-md overflow-hidden rounded-[2rem] border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/60 sm:p-8"
+        >
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-cyan-400 to-violet-500 text-white shadow-lg shadow-cyan-100">
+            <LockKeyhole className="h-8 w-8" />
+          </div>
+
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-cyan-700">Secure Access</p>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-900">
+              Portfolio Risk Command Center
+            </h1>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">
+              Enter your 4-digit PIN to unlock predictive risk intelligence.
+            </p>
+          </div>
+
+          <div className="mt-8 flex justify-center gap-3" onPaste={handlePaste}>
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={node => {
+                  inputsRef.current[index] = node;
+                }}
+                type="password"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                aria-label={`PIN digit ${index + 1}`}
+                maxLength={1}
+                value={digit}
+                onChange={event => updateDigit(index, event.target.value)}
+                onKeyDown={event => handleKeyDown(index, event)}
+                className="h-14 w-12 rounded-2xl border border-slate-200 bg-slate-50 text-center text-2xl font-bold text-slate-900 shadow-sm outline-none transition focus:border-cyan-400 focus:bg-white focus:ring-4 focus:ring-cyan-100 sm:h-16 sm:w-14"
+              />
+            ))}
+          </div>
+
+          {message && (
+            <motion.p
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-center text-sm font-semibold text-rose-700"
+            >
+              {message}
+            </motion.p>
+          )}
+
+          <button
+            type="submit"
+            disabled={!complete || submitting}
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-slate-200 transition hover:-translate-y-0.5 hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:translate-y-0"
+          >
+            {submitting ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <ShieldCheck className="h-4 w-4" />
+            )}
+            Unlock dashboard
+          </button>
+
+          <p className="mt-5 text-center text-xs leading-relaxed text-slate-500">
+            Verification happens on the server. The PIN is not stored in the browser or embedded in the app bundle.
+          </p>
+        </motion.form>
+      </main>
     </div>
   );
 }
@@ -430,6 +598,9 @@ function AIInsightsPanel({ accounts }) {
 }
 
 export default function App() {
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState(null);
   const [accounts, setAccounts] = useState([]);
   const [summary, setSummary] = useState(null);
   const [activeSegment, setActiveSegment] = useState('All');
@@ -443,6 +614,30 @@ export default function App() {
   useEffect(() => {
     const controller = new AbortController();
 
+    fetchJson('/api/auth/status', { signal: controller.signal })
+      .then(status => {
+        setAuthenticated(Boolean(status.authenticated));
+        if (!status.configured) {
+          setAuthError('PIN lock is not configured on the server.');
+        }
+      })
+      .catch(err => {
+        if (err.name !== 'AbortError') setAuthError(err.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAuthChecking(false);
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (!authenticated) return undefined;
+
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+
     Promise.all([
       fetchJson('/api/portfolio/summary', { signal: controller.signal }),
       fetchJson('/api/accounts', { signal: controller.signal }),
@@ -452,14 +647,20 @@ export default function App() {
         setAccounts(accs);
       })
       .catch(err => {
-        if (err.name !== 'AbortError') setError(err.message);
+        if (err.name !== 'AbortError') {
+          if (err.message === 'PIN verification required') {
+            setAuthenticated(false);
+          } else {
+            setError(err.message);
+          }
+        }
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
       });
 
     return () => controller.abort();
-  }, []);
+  }, [authenticated]);
 
   useEffect(() => {
     const handlePopState = () => setRoute(getCurrentRoute());
@@ -469,6 +670,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!authenticated) return undefined;
     if (route.name !== 'accountDashboard') return;
 
     if (!route.accountId) {
@@ -486,8 +688,12 @@ export default function App() {
       .then(data => setAccountDetail(data))
       .catch(err => {
         if (err.name !== 'AbortError') {
-          setAccountDetail(null);
-          setDetailError(err.message);
+          if (err.message === 'PIN verification required') {
+            setAuthenticated(false);
+          } else {
+            setAccountDetail(null);
+            setDetailError(err.message);
+          }
         }
       })
       .finally(() => {
@@ -495,7 +701,13 @@ export default function App() {
       });
 
     return () => controller.abort();
-  }, [route]);
+  }, [route, authenticated]);
+
+  const handleUnlocked = useCallback(() => {
+    setAuthenticated(true);
+    setAuthError(null);
+    setError(null);
+  }, []);
 
   const thresholds = summary?.thresholds ?? FALLBACK_THRESHOLDS;
 
@@ -567,6 +779,11 @@ export default function App() {
     setRoute(getCurrentRoute());
   }, []);
 
+  if (authChecking) return <Spinner />;
+  if (!authenticated) {
+    if (authError) return <ErrorState message={authError} />;
+    return <PinLockScreen onUnlocked={handleUnlocked} />;
+  }
   if (loading) return <Spinner />;
   if (error) return <ErrorState message={error} />;
 

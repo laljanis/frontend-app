@@ -187,30 +187,15 @@ function ContributionBars({ drivers }) {
   );
 }
 
+const RECOMMENDATION_ICONS = {
+  credit: CreditCard,
+  payment: HandCoins,
+  monitor: CheckCircle2,
+  outreach: CalendarClock,
+};
+
 function Recommendations({ account }) {
-  const recommendations = [
-    {
-      title: 'Reduce credit utilization below 40%',
-      priority: account.score > 0.58 ? 'High' : 'Medium',
-      reduction: '8-12%',
-      confidence: '91%',
-      icon: CreditCard,
-    },
-    {
-      title: account.segment === 'Critical' ? 'Offer restructuring plan' : 'Send proactive payment reminder',
-      priority: account.segment === 'Critical' ? 'Critical' : 'Medium',
-      reduction: '5-9%',
-      confidence: '87%',
-      icon: HandCoins,
-    },
-    {
-      title: 'Monitor behavior for 30 days',
-      priority: 'Low',
-      reduction: '2-4%',
-      confidence: '78%',
-      icon: CheckCircle2,
-    },
-  ];
+  const recommendations = account.recommendations ?? [];
 
   return (
     <Shell className="p-6">
@@ -218,40 +203,49 @@ function Recommendations({ account }) {
         <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-600">Recommendations</p>
         <h2 className="mt-2 text-xl font-semibold text-slate-900">Next best actions</h2>
       </div>
-      <div className="space-y-3">
-        {recommendations.map((recommendation, index) => (
-          <motion.div
-            key={recommendation.title}
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.07 }}
-            className="group rounded-3xl border border-slate-200 bg-slate-50/50 p-4 transition hover:-translate-y-0.5 hover:bg-slate-50"
-          >
-            <div className="flex gap-3">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-cyan-600 shadow-sm">
-                <recommendation.icon className="h-5 w-5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-semibold text-slate-800">{recommendation.title}</p>
-                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-800" />
+      {recommendations.length === 0 ? (
+        <p className="rounded-3xl border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-500">
+          Recommendations unavailable.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {recommendations.map((recommendation, index) => {
+            const Icon = RECOMMENDATION_ICONS[recommendation.category] ?? CheckCircle2;
+            return (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.07 }}
+                className="group rounded-3xl border border-slate-200 bg-slate-50/50 p-4 transition hover:-translate-y-0.5 hover:bg-slate-50"
+              >
+                <div className="flex gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-cyan-600 shadow-sm">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-800">{recommendation.title}</p>
+                      <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-800" />
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                      <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 font-medium text-slate-600">
+                        {recommendation.priority} priority
+                      </span>
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
+                        {recommendation.reduction} reduction
+                      </span>
+                      <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-1 font-medium text-cyan-700">
+                        {recommendation.confidence} confidence
+                      </span>
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                  <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 font-medium text-slate-600">
-                    {recommendation.priority} priority
-                  </span>
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
-                    {recommendation.reduction} reduction
-                  </span>
-                  <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-1 font-medium text-cyan-700">
-                    {recommendation.confidence} confidence
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
     </Shell>
   );
 }
