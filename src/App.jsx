@@ -101,10 +101,13 @@ async function fetchJson(url, options) {
   return response.json();
 }
 
-function getRiskSegment(score) {
-  if (score < 0.25) return 'Low';
-  if (score < 0.45) return 'Medium';
-  if (score < 0.7) return 'High';
+const FALLBACK_THRESHOLDS = { nudge: 0.0457, intervene: 0.0913 };
+
+function getRiskSegment(score, thresholds = FALLBACK_THRESHOLDS) {
+  const { nudge, intervene } = thresholds;
+  if (score < nudge / 2) return 'Low';
+  if (score < nudge) return 'Medium';
+  if (score < intervene) return 'High';
   return 'Critical';
 }
 
@@ -127,11 +130,11 @@ function formatCurrency(value) {
   }).format(value);
 }
 
-function enrichAccount(account) {
+function enrichAccount(account, thresholds = FALLBACK_THRESHOLDS) {
   const trendStart = account.trend?.[0] ?? account.score;
   const trendEnd = account.trend?.[account.trend.length - 1] ?? account.score;
   const trendDelta = trendEnd - trendStart;
-  const segment = getRiskSegment(account.score);
+  const segment = getRiskSegment(account.score, thresholds);
 
   return {
     ...account,
@@ -457,7 +460,7 @@ export default function App() {
     setDetailError(null);
 
     fetchJson(`/api/accounts/${encodeURIComponent(route.accountId)}`, { signal: controller.signal })
-      .then(data => setAccountDetail(enrichAccount(data)))
+      .then(data => setAccountDetail(data))
       .catch(err => {
         if (err.name !== 'AbortError') {
           setAccountDetail(null);
@@ -471,9 +474,16 @@ export default function App() {
     return () => controller.abort();
   }, [route]);
 
+  const thresholds = summary?.thresholds ?? FALLBACK_THRESHOLDS;
+
   const enrichedAccounts = useMemo(
-    () => accounts.map(enrichAccount),
-    [accounts],
+    () => accounts.map(account => enrichAccount(account, thresholds)),
+    [accounts, thresholds],
+  );
+
+  const enrichedAccountDetail = useMemo(
+    () => (accountDetail ? enrichAccount(accountDetail, thresholds) : null),
+    [accountDetail, thresholds],
   );
 
   const portfolioMetrics = useMemo(() => {
@@ -484,15 +494,18 @@ export default function App() {
       (sum, account) => sum + account.exposure * account.score * 0.18,
       0,
     );
-    const forecastLift = Math.max(2.8, averageRisk * 11.5);
+    // Normalize against the Intervene threshold so the gauge/forecast still
+    // span a meaningful range now that calibrated scores run much lower.
+    const riskPressure = Math.min(1, averageRisk / thresholds.intervene);
+    const forecastLift = Math.max(2.8, riskPressure * 32);
 
     return {
-      healthScore: Math.max(8, Math.round((1 - averageRisk) * 100)),
+      healthScore: Math.max(8, Math.round((1 - riskPressure) * 100)),
       atRisk,
       expectedLoss,
       forecastLift,
     };
-  }, [enrichedAccounts]);
+  }, [enrichedAccounts, thresholds]);
 
   const distributionData = useMemo(
     () => RISK_SEGMENTS.map(segment => ({
@@ -537,7 +550,7 @@ export default function App() {
   if (route.name === 'accountDashboard') {
     return (
       <AccountDashboard
-        account={accountDetail}
+        account={enrichedAccountDetail}
         loading={detailLoading}
         error={detailError}
         onBack={returnToPortfolio}

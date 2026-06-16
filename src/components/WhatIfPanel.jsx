@@ -25,13 +25,6 @@ const TIER_BG = {
   Intervene: 'bg-rose-400/10 border-rose-300/20',
 };
 
-const SIMULATOR_LABELS = {
-  DEBT_TO_CREDIT_RATIO: 'Credit utilization',
-  INST_MAX_DAYS_LATE: 'Payment delays',
-  EXT_SOURCE_MEAN: 'Income and bureau strength',
-  CC_UTILITY_MEAN: 'Loan balance pressure',
-};
-
 function ScoreTile({ label, score, tier, highlighted }) {
   return (
     <div
@@ -218,14 +211,9 @@ export default function WhatIfPanel({ accountId, originalScore, originalTier }) 
             return (
               <div key={slider.feature}>
                 <div className="mb-2 flex items-baseline justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-slate-200">
-                      {SIMULATOR_LABELS[slider.feature] ?? slider.label}
-                    </p>
-                    <p className="mt-0.5 text-[11px] text-slate-500">{slider.label}</p>
-                  </div>
+                  <p className="text-sm font-medium text-slate-200">{slider.label}</p>
                   <span className="font-mono text-xs font-semibold text-cyan-200">
-                    {Number(value).toFixed(slider.step < 1 ? 2 : 0)} {slider.unit}
+                    {Number(value).toFixed(slider.step < 1 ? 2 : 0)}
                   </span>
                 </div>
                 <div className="relative">
