@@ -1,12 +1,12 @@
 const TIER_COLORS = {
-  Watch: '#FACC15',
-  Nudge: '#FB923C',
-  Intervene: '#F43F5E',
+  Watch: '#0EA5E9',
+  Nudge: '#F59E0B',
+  Intervene: '#E11D48',
 };
 
 export default function DonutChart({ score, tier, size = 110, label = 'risk' }) {
   const pct = Math.round(score * 100);
-  const color = TIER_COLORS[tier] ?? '#FACC15';
+  const color = TIER_COLORS[tier] ?? '#0EA5E9';
   const center = Math.round(size / 2);
   const strokeWidth = Math.max(10, Math.round(size * 0.16));
   const radius = center - strokeWidth / 2;
@@ -18,7 +18,7 @@ export default function DonutChart({ score, tier, size = 110, label = 'risk' }) 
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <div
-        className="absolute inset-2 rounded-full blur-xl opacity-30"
+        className="absolute inset-2 rounded-full blur-xl opacity-15"
         style={{ backgroundColor: color }}
       />
       <svg className="relative block" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -27,7 +27,7 @@ export default function DonutChart({ score, tier, size = 110, label = 'risk' }) 
           cy={center}
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.08)"
+          stroke="rgba(0,0,0,0.05)"
           strokeWidth={strokeWidth}
         />
         <circle
@@ -51,7 +51,7 @@ export default function DonutChart({ score, tier, size = 110, label = 'risk' }) 
           y={center}
           textAnchor="middle"
           dominantBaseline="middle"
-          fill="white"
+          fill="#1E293B"
           fontSize={percentFontSize}
           fontWeight="700"
         >

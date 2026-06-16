@@ -1,13 +1,13 @@
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 const TIER_COLORS = {
-  Watch: '#FACC15',
-  Nudge: '#FB923C',
-  Intervene: '#F43F5E',
+  Watch: '#0EA5E9',
+  Nudge: '#F59E0B',
+  Intervene: '#E11D48',
 };
 
 export default function Sparkline({ trend = [], tier, height = 36 }) {
-  const color = TIER_COLORS[tier] ?? '#FACC15';
+  const color = TIER_COLORS[tier] ?? '#0EA5E9';
   const gradientId = `spark-${tier || 'default'}-${height}`;
   const data = trend.map((value, index) => ({ period: `P${index + 1}`, score: value }));
 
@@ -31,12 +31,13 @@ export default function Sparkline({ trend = [], tier, height = 36 }) {
         />
         <Tooltip
           contentStyle={{
-            background: '#020617',
-            border: '1px solid rgba(255,255,255,0.12)',
+            background: '#FFFFFF',
+            border: '1px solid #E2E8F0',
             borderRadius: 12,
             fontSize: 11,
+            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
           }}
-          labelStyle={{ color: '#94A3B8' }}
+          labelStyle={{ color: '#64748B' }}
           itemStyle={{ color }}
           formatter={value => [Number(value).toFixed(2), 'Risk score']}
         />
