@@ -4,12 +4,9 @@ import {
   BadgeCheck,
   Bot,
   CalendarClock,
-  CheckCircle2,
-  ChevronRight,
   CircleDollarSign,
   CreditCard,
   Gauge,
-  HandCoins,
   Landmark,
   ShieldAlert,
   Sparkles,
@@ -25,6 +22,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import AIRiskAnalystCard from './AIRiskAnalystCard';
 import DonutChart from './DonutChart';
 import Sparkline from './Sparkline';
 import WhatIfPanel from './WhatIfPanel';
@@ -187,69 +185,6 @@ function ContributionBars({ drivers }) {
   );
 }
 
-const RECOMMENDATION_ICONS = {
-  credit: CreditCard,
-  payment: HandCoins,
-  monitor: CheckCircle2,
-  outreach: CalendarClock,
-};
-
-function Recommendations({ account }) {
-  const recommendations = account.recommendations ?? [];
-
-  return (
-    <Shell className="p-6">
-      <div className="mb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-600">Recommendations</p>
-        <h2 className="mt-2 text-xl font-semibold text-slate-900">Next best actions</h2>
-      </div>
-      {recommendations.length === 0 ? (
-        <p className="rounded-3xl border border-slate-200 bg-slate-50/50 p-4 text-sm text-slate-500">
-          Recommendations unavailable.
-        </p>
-      ) : (
-        <div className="space-y-3">
-          {recommendations.map((recommendation, index) => {
-            const Icon = RECOMMENDATION_ICONS[recommendation.category] ?? CheckCircle2;
-            return (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.07 }}
-                className="group rounded-3xl border border-slate-200 bg-slate-50/50 p-4 transition hover:-translate-y-0.5 hover:bg-slate-50"
-              >
-                <div className="flex gap-3">
-                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-cyan-600 shadow-sm">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-800">{recommendation.title}</p>
-                      <ChevronRight className="h-4 w-4 flex-shrink-0 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-slate-800" />
-                    </div>
-                    <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-                      <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 font-medium text-slate-600">
-                        {recommendation.priority} priority
-                      </span>
-                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-emerald-700">
-                        {recommendation.reduction} reduction
-                      </span>
-                      <span className="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-1 font-medium text-cyan-700">
-                        {recommendation.confidence} confidence
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      )}
-    </Shell>
-  );
-}
-
 export default function AccountDashboard({ account, loading, error, onBack }) {
   if (loading) return <DashboardSpinner onBack={onBack} />;
 
@@ -264,7 +199,6 @@ export default function AccountDashboard({ account, loading, error, onBack }) {
 
   const styles = SEGMENT_STYLES[account.segment] ?? SEGMENT_STYLES.Medium;
   const timeline = buildTimeline(account);
-  const riskSummary = `${account.customerName} is most sensitive to ${account.drivers?.[0]?.label?.toLowerCase() || 'payment behavior'}. The model expects ${account.riskMovement.toLowerCase()} movement unless utilization and repayment patterns improve before the next scoring cycle.`;
 
   return (
     <div className="min-h-screen overflow-hidden bg-[#f8fafc] text-slate-800">
@@ -315,6 +249,10 @@ export default function AccountDashboard({ account, loading, error, onBack }) {
           </div>
         </section>
 
+        <div className="mt-5">
+          <AIRiskAnalystCard account={account} />
+        </div>
+
         <section className="mt-5 grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
           <Shell className="p-6">
             <div className="mb-5 flex items-center gap-3">
@@ -323,13 +261,7 @@ export default function AccountDashboard({ account, loading, error, onBack }) {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-600">Explainable AI</p>
-                <h2 className="mt-1 text-xl font-semibold text-slate-900">Why this customer is risky</h2>
-              </div>
-            </div>
-            <div className="mb-5 rounded-3xl border border-cyan-100 bg-cyan-50/30 p-5">
-              <div className="flex gap-3">
-                <Sparkles className="mt-0.5 h-5 w-5 flex-shrink-0 text-cyan-600" />
-                <p className="text-sm leading-relaxed text-slate-600">{riskSummary}</p>
+                <h2 className="mt-1 text-xl font-semibold text-slate-900">Feature importance breakdown</h2>
               </div>
             </div>
             <ContributionBars drivers={account.drivers || []} />
@@ -351,7 +283,7 @@ export default function AccountDashboard({ account, loading, error, onBack }) {
           </Shell>
         </section>
 
-        <section className="mt-5 grid gap-5 xl:grid-cols-[1.2fr,0.8fr]">
+        <section className="mt-5">
           <Shell className="p-6">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -401,8 +333,6 @@ export default function AccountDashboard({ account, loading, error, onBack }) {
               ))}
             </div>
           </Shell>
-
-          <Recommendations account={account} />
         </section>
       </main>
     </div>
